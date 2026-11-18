@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulación Lobo–Bisonte · Leslie-Gower con caza cooperativa y efecto Allee</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --card:#ffffff; --ink:#1f2328; --muted:#5b6470; --line:#e3e0d8;
+    --bison:#8a5a2b; --wolf:#3b5b8c; --accent:#b23a48; --ok:#2e7d4f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  header{padding:40px 24px 24px;max-width:1150px;margin:auto}
+  header h1{margin:0 0 6px;font-size:clamp(1.5rem,3vw,2.2rem);letter-spacing:-.01em}
+  header p{margin:0;color:var(--muted);max-width:780px}
+  main{max-width:1150px;margin:auto;padding:0 24px 60px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:22px}
+  h2{margin:0 0 12px;font-size:1.25rem}
+  h3{margin:18px 0 8px;font-size:1rem}
+  .eq{font-family:"Cambria Math","Times New Roman",serif;font-size:1.15rem;background:#faf8f3;border-left:4px solid var(--accent);padding:12px 16px;border-radius:6px;margin:10px 0;overflow-x:auto}
+  .grid{display:grid;grid-template-columns:300px 1fr;gap:22px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .ctrl label{display:flex;justify-content:space-between;font-size:.9rem;margin-top:10px}
+  .ctrl label span.v{font-variant-numeric:tabular-nums;font-weight:600}
+  .ctrl small{display:block;color:var(--muted);font-size:.78rem;margin-top:-2px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit;font-size:.88rem}
+  button:hover{border-color:var(--accent)}
+  button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  canvas{width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;display:block}
+  .plots{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:860px){.plots{grid-template-columns:1fr}}
+  .cap{font-size:.82rem;color:var(--muted);margin:6px 2px 0}
+  .legend{display:flex;gap:16px;font-size:.85rem;margin:6px 0}
+  .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:6px}
+  table{border-collapse:collapse;width:100%;font-size:.88rem}
+  th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+  th{background:#faf8f3}
+  .verdict{padding:12px 14px;border-radius:8px;margin-top:12px;font-weight:600}
+  .verdict.ok{background:#e8f4ec;color:var(--ok)}
+  .verdict.bad{background:#f8e7e9;color:var(--accent)}
+  .verdict.mid{background:#fdf3e1;color:#8a5a00}
+  .note{font-size:.85rem;color:var(--muted)}
+  footer{text-align:center;color:var(--muted);font-size:.8rem;padding:20px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Dinámica depredador–presa Lobo–Bisonte</h1>
+  <p>Simulación del modelo de Leslie-Gower modificado con <b>caza cooperativa</b> del depredador y <b>efecto Allee</b> en la presa, aplicado al lobo (<i>Canis lupus</i>) y al bisonte (<i>Bison bison</i>) del Parque Nacional de Yellowstone.</p>
+</header>
+
+<main>
+
+<section>
+  <h2>1. Problemática ecológica</h2>
+  <p>El bisonte es una presa formidable: es unas tres veces más difícil y peligroso de someter que el alce, y un lobo solo lo captura apenas en el 1% de los intentos (MacNulty et al.). La pregunta central es cómo la <b>cooperación en manada</b> cambia la tasa de captura y si esa cooperación estabiliza el ecosistema o puede llevarlo al colapso cuando la presa tiene un <b>umbral crítico de población</b> (efecto Allee).</p>
+  <p class="note">Delimitación: Valle de Pelican y Cordillera Norte (Yellowstone), inviernos (nov.–dic. y marzo), manadas con radiocollar (Mollie's, Druid Peak, Leopold, Rose Creek).</p>
+</section>
+
+<section>
+  <h2>2. Modelo matemático</h2>
+  <div class="eq">
+    dx/dt = r·x·(1 − x/K)·(x − m) − (q + a·y)·x·y<br>
+    dy/dt = s·y·(1 − y/(x + c))
+  </div>
+  <table>
+    <tr><th>Símbolo</th><th>Significado</th></tr>
+    <tr><td>x(t)</td><td>Densidad de bisontes (presa)</td></tr>
+    <tr><td>y(t)</td><td>Densidad de lobos (depredador)</td></tr>
+    <tr><td>r</td><td>Tasa intrínseca de crecimiento del bisonte</td></tr>
+    <tr><td>K</td><td>Capacidad de carga del bisonte</td></tr>
+    <tr><td>m</td><td>Umbral del efecto Allee: por debajo de m la población de bisontes decrece sola</td></tr>
+    <tr><td>q</td><td>Tasa base de ataque sin cooperación</td></tr>
+    <tr><td>a</td><td>Coeficiente de caza cooperativa: la respuesta funcional es h(x,y) = (q + a·y)·x</td></tr>
+    <tr><td>s</td><td>Tasa de crecimiento del lobo</td></tr>
+    <tr><td>c</td><td>Alimento alternativo del lobo (presas secundarias)</td></tr>
+  </table>
+  <p class="note">Las densidades son relativas (adimensionales, escaladas respecto a K). Los valores por defecto son ilustrativos y están elegidos para reproducir los comportamientos que describe el documento, no medidos en campo. La ecuación del lobo es la forma de Leslie-Gower: su capacidad de carga (x + c) depende de cuántos bisontes hay.</p>
+</section>
+
+<section>
+  <h2>3. Simulación interactiva</h2>
+  <div class="btns">
+    <button data-sc="0">Sin cooperación (a = 0)</button>
+    <button data-sc="1">Cooperación moderada (a = 0,3)</button>
+    <button data-sc="2">Cooperación excesiva (a = 0,8)</button>
+    <button data-sc="3">Bisontes por debajo del umbral m</button>
+  </div>
+  <div class="grid">
+    <div class="ctrl" id="ctrl"></div>
+    <div>
+      <div class="plots">
+        <div>
+          <canvas id="cTime" width="640" height="380"></canvas>
+          <div class="legend"><span><i style="background:var(--bison)"></i>Bisontes x(t)</span><span><i style="background:var(--wolf)"></i>Lobos y(t)</span><span><i style="background:var(--accent);height:0;border-top:2px dashed var(--accent)"></i>Umbral m</span></div>
+          <p class="cap">Evolución de ambas poblaciones en el tiempo.</p>
+        </div>
+        <div>
+          <canvas id="cPhase" width="640" height="380"></canvas>
+          <div class="legend"><span><i style="background:#999"></i>Trayectoria</span><span><i style="background:var(--bison)"></i>Isoclina del bisonte</span><span><i style="background:var(--wolf)"></i>Isoclina del lobo</span></div>
+          <p class="cap">Plano de fases (x, y). Los puntos son los equilibrios: ● estable, ○ inestable.</p>
+        </div>
+      </div>
+      <div id="verdict" class="verdict"></div>
+      <h3>Puntos de equilibrio</h3>
+      <table id="eqTable"></table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>4. ¿Cuánta cooperación es demasiada? (Diagrama de bifurcación)</h2>
+  <canvas id="cBif" width="1100" height="360"></canvas>
+  <p class="cap">Para cada valor de <b>a</b> se simula el sistema hasta el estado final, con el resto de parámetros como en los controles. A partir de un valor crítico de cooperación, el bisonte cae por debajo de m y colapsa; los lobos quedan reducidos al alimento alternativo c. La línea vertical marca el valor actual de a.</p>
+</section>
+
+<section>
+  <h2>5. Evidencia de campo: tamaño de la manada y éxito de caza</h2>
+  <canvas id="cHunt" width="1100" height="360"></canvas>
+  <div class="legend"><span><i style="background:#c48a3a"></i>Probabilidad de iniciar el ataque</span><span><i style="background:var(--accent)"></i>Probabilidad de captura del bisonte</span></div>
+  <p class="cap">Curvas ilustrativas construidas con los valores del documento (MacNulty et al., GLMM con splines). <b>Ataque:</b> 15% con un lobo, razón de posibilidades OR = 1,67 por lobo adicional, saturación en 4 lobos. <b>Captura:</b> 1% con un lobo, OR = 1,40 por lobo, saturación en 11 lobos. La manada de Mollie's (≈10,6 lobos; IC 95%: 8,3–12,9) está sombreada: su tamaño coincide con la zona de saturación de la captura.</p>
+</section>
+
+<section>
+  <h2>6. Conclusiones</h2>
+  <ul>
+    <li><b>La cooperación es necesaria:</b> para presas formidables como el bisonte, cazar solo casi nunca funciona. Esto explica por qué las manadas que cazan bisontes son grandes.</li>
+    <li><b>Pero tiene un límite:</b> en el modelo, una cooperación moderada mantiene la coexistencia; una cooperación excesiva sobreexplota al bisonte, lo empuja por debajo del umbral m y provoca un colapso repentino (no gradual).</li>
+    <li><b>Uso en conservación:</b> incluir el efecto Allee y la cooperación en los modelos ayuda a diseñar reintroducciones y a anticipar colapsos por cambios en la estructura social del depredador o por fragmentación del hábitat.</li>
+  </ul>
+</section>
+
+</main>
+<footer>Proyecto de Modelación Matemática · Simulación numérica con Runge-Kutta de 4.º orden</footer>
+
+<script>
+// ---------- Parámetros ----------
+const P = {r:1, K:1, m:0.15, q:0.1, a:0.3, s:0.3, c:0.05, x0:0.8, y0:0.1, T:300};
+const spec = [
+  ['r','Tasa de crecimiento del bisonte',0.2,2,0.05],
+  ['K','Capacidad de carga del bisonte',0.5,2,0.05],
+  ['m','Umbral de Allee',0,0.5,0.01],
+  ['q','Ataque base (sin cooperación)',0,0.5,0.01],
+  ['a','Cooperación de caza',0,1.5,0.01],
+  ['s','Crecimiento del lobo',0.05,1,0.01],
+  ['c','Alimento alternativo del lobo',0.01,0.5,0.01],
+  ['x0','Bisontes iniciales',0.01,1.5,0.01],
+  ['y0','Lobos iniciales',0.01,1.5,0.01],
+  ['T','Tiempo de simulación',50,800,10],
+];
+const scenarios = [
+  {a:0, x0:0.8, y0:0.1},
+  {a:0.3, x0:0.8, y0:0.1},
+  {a:0.8, x0:0.8, y0:0.1},
+  {a:0.3, x0:0.12, y0:0.1},
+];
+
+const ctrl = document.getElementById('ctrl');
+spec.forEach(([k,lab,mn,mx,st])=>{
+  const w=document.createElement('div');
+  w.innerHTML='<label><span>'+lab+' ('+k+')</span><span class="v" id="v_'+k+'"></span></label>'+
+  '<input type="range" id="s_'+k+'" min="'+mn+'" max="'+mx+'" step="'+st+'">';
+  ctrl.appendChild(w);
+  const inp=w.querySelector('input');
+  inp.value=P[k];
+  inp.addEventListener('input',()=>{P[k]=+inp.value;clearOn();update();});
+});
+function syncSliders(){spec.forEach(([k])=>{document.getElementById('s_'+k).value=P[k];});}
+function clearOn(){document.querySelectorAll('[data-sc]').forEach(b=>b.classList.remove('on'));}
+document.querySelectorAll('[data-sc]').forEach(b=>b.addEventListener('click',()=>{
+  Object.assign(P,{r:1,K:1,m:0.15,q:0.1,s:0.3,c:0.05,T:300},scenarios[+b.dataset.sc]);
+  syncSliders();clearOn();b.classList.add('on');update();
+}));
+
+// ---------- Modelo ----------
+function F(x,y,p){
+  x=Math.max(x,0); y=Math.max(y,0);
+  const dx=p.r*x*(1-x/p.K)*(x-p.m)-(p.q+p.a*y)*x*y;
+  const dy=p.s*y*(1-y/(x+p.c));
+  return [dx,dy];
+}
+function simulate(p,T,dt=0.05){
+  let x=p.x0,y=p.y0; const out=[[0,x,y]]; const n=Math.round(T/dt); const every=Math.max(1,Math.round(n/1500));
+  for(let i=1;i<=n;i++){
+    const k1=F(x,y,p);
+    const k2=F(x+dt/2*k1[0],y+dt/2*k1[1],p);
+    const k3=F(x+dt/2*k2[0],y+dt/2*k2[1],p);
+    const k4=F(x+dt*k3[0],y+dt*k3[1],p);
+    x+=dt/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]);
+    y+=dt/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]);
+    x=Math.max(x,0); y=Math.max(y,0);
+    if(i%every===0) out.push([i*dt,x,y]);
+  }
+  return out;
+}
+// Isoclina no trivial del bisonte: a y^2 + q y - g(x) = 0, g = r(1-x/K)(x-m)
+function preyIso(x,p){
+  const g=p.r*(1-x/p.K)*(x-p.m);
+  if(g<0) return null;
+  if(p.a<1e-9) return p.q>0? g/p.q : null;
+  return (-p.q+Math.sqrt(p.q*p.q+4*p.a*g))/(2*p.a);
+}
+function equilibria(p){
+  const E=[];
+  E.push({x:0,y:0,name:'Extinción total'});
+  E.push({x:0,y:p.c,name:'Sin bisontes; lobos con alimento alternativo'});
+  // interior: y = x + c sobre la isoclina del bisonte
+  const h=x=>{const yi=preyIso(x,p); return yi===null?NaN:yi-(x+p.c);};
+  const N=4000, lo=Math.max(p.m,0)+1e-9, hi=p.K-1e-9;
+  let px=lo, ph=h(lo);
+  for(let i=1;i<=N;i++){
+    const x=lo+(hi-lo)*i/N, hv=h(x);
+    if(!isNaN(ph)&&!isNaN(hv)&&ph*hv<=0){
+      let a=px,b=x;
+      for(let j=0;j<60;j++){const mdl=(a+b)/2; if(h(a)*h(mdl)<=0) b=mdl; else a=mdl;}
+      const xe=(a+b)/2; E.push({x:xe,y:xe+p.c,name:'Coexistencia'});
+    }
+    px=x; ph=hv;
+  }
+  E.forEach(e=>{e.stable=isStable(e.x,e.y,p);});
+  return E;
+}
+function isStable(x,y,p){
+  const e=1e-6;
+  const f0=F(x,y,p), fx=F(x+e,y,p), fy=F(x,y+e,p);
+  // derivadas unilaterales en el borde x=0
+  const J=[[(fx[0]-f0[0])/e,(fy[0]-f0[0])/e],[(fx[1]-f0[1])/e,(fy[1]-f0[1])/e]];
+  const tr=J[0][0]+J[1][1], det=J[0][0]*J[1][1]-J[0][1]*J[1][0];
+  return {stable: det>0 && tr<0, tr, det};
+}
+
+// ---------- Dibujo ----------
+function setup(cv){
+  const dpr=window.devicePixelRatio||1, w=cv.width, h=cv.height;
+  if(!cv._init){cv.style.aspectRatio=w+'/'+h; cv.width=w*dpr; cv.height=h*dpr; cv._w=w; cv._h=h; cv._init=true;}
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cv._w,cv._h);
+  return [ctx,cv._w,cv._h];
+}
+function axes(ctx,W,H,xmax,ymax,xl,yl,pad={l:52,r:14,t:14,b:42}){
+  const X=v=>pad.l+(W-pad.l-pad.r)*v/xmax, Y=v=>H-pad.b-(H-pad.t-pad.b)*v/ymax;
+  ctx.strokeStyle='#e3e0d8'; ctx.fillStyle='#5b6470'; ctx.font='12px system-ui'; ctx.lineWidth=1;
+  for(let i=0;i<=5;i++){
+    const vx=xmax*i/5, vy=ymax*i/5;
+    ctx.beginPath(); ctx.moveTo(X(vx),Y(0)); ctx.lineTo(X(vx),Y(ymax)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X(0),Y(vy)); ctx.lineTo(X(xmax),Y(vy)); ctx.stroke();
+    ctx.textAlign='center'; ctx.fillText(+vx.toFixed(2),X(vx),H-pad.b+16);
+    ctx.textAlign='right'; ctx.fillText(+vy.toFixed(2),pad.l-6,Y(vy)+4);
+  }
+  ctx.textAlign='center'; ctx.fillStyle='#1f2328'; ctx.fillText(xl,(pad.l+W-pad.r)/2,H-6);
+  ctx.save(); ctx.translate(14,(pad.t+H-pad.b)/2); ctx.rotate(-Math.PI/2); ctx.fillText(yl,0,0); ctx.restore();
+  return [X,Y];
+}
+function line(ctx,pts,X,Y,col,w=2.2,dash=[]){
+  ctx.strokeStyle=col; ctx.lineWidth=w; ctx.setLineDash(dash); ctx.beginPath();
+  let started=false;
+  pts.forEach(([a,b])=>{ if(b===null||isNaN(b)){started=false;return;} if(!started){ctx.moveTo(X(a),Y(b));started=true;} else ctx.lineTo(X(a),Y(b)); });
+  ctx.stroke(); ctx.setLineDash([]);
+}
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function drawTime(sol){
+  const [ctx,W,H]=setup(document.getElementById('cTime'));
+  const ymax=Math.max(1.1,...sol.map(s=>Math.max(s[1],s[2])))*1.05;
+  const [X,Y]=axes(ctx,W,H,P.T,ymax,'Tiempo','Densidad relativa');
+  line(ctx,[[0,P.m],[P.T,P.m]],X,Y,css('--accent'),1.3,[6,5]);
+  line(ctx,sol.map(s=>[s[0],s[1]]),X,Y,css('--bison'));
+  line(ctx,sol.map(s=>[s[0],s[2]]),X,Y,css('--wolf'));
+}
+function drawPhase(sol,E){
+  const [ctx,W,H]=setup(document.getElementById('cPhase'));
+  const xmax=Math.max(P.K,...sol.map(s=>s[1]))*1.08;
+  const ymax=Math.max(P.K+P.c,...sol.map(s=>s[2]))*1.08;
+  const [X,Y]=axes(ctx,W,H,xmax,ymax,'Bisontes (x)','Lobos (y)');
+  // campo de direcciones
+  ctx.strokeStyle='#c9c4b8'; ctx.lineWidth=1;
+  for(let i=1;i<14;i++)for(let j=1;j<10;j++){
+    const x=xmax*i/14,y=ymax*j/10,[u,v]=F(x,y,P);
+    const ux=X(x+u)-X(x), vy=Y(y+v)-Y(y), L=Math.hypot(ux,vy)||1, s=9;
+    ctx.beginPath(); ctx.moveTo(X(x),Y(y)); ctx.lineTo(X(x)+ux/L*s,Y(y)+vy/L*s); ctx.stroke();
+    ctx.beginPath(); ctx.arc(X(x)+ux/L*s,Y(y)+vy/L*s,1.4,0,7); ctx.fillStyle='#c9c4b8'; ctx.fill();
+  }
+  // isoclinas
+  const iso=[]; for(let i=0;i<=400;i++){const x=xmax*i/400; iso.push([x,(x>=P.m&&x<=P.K)?preyIso(x,P):null]);}
+  line(ctx,iso,X,Y,css('--bison'),1.6,[5,4]);
+  line(ctx,[[0,0],[xmax,0]].map(([x])=>[x,x+P.c]),X,Y,css('--wolf'),1.6,[5,4]);
+  // trayectoria
+  line(ctx,sol.map(s=>[s[1],s[2]]),X,Y,'#555',2);
+  ctx.beginPath(); ctx.arc(X(sol[0][1]),Y(sol[0][2]),4,0,7); ctx.fillStyle='#555'; ctx.fill();
+  // equilibrios
+  E.forEach(e=>{
+    ctx.beginPath(); ctx.arc(X(e.x),Y(e.y),6,0,7); ctx.lineWidth=2.2;
+    ctx.strokeStyle=css('--accent'); if(e.stable.stable){ctx.fillStyle=css('--accent'); ctx.fill();} else {ctx.fillStyle='#fff'; ctx.fill(); ctx.stroke();}
+  });
+}
+function drawBif(){
+  const [ctx,W,H]=setup(document.getElementById('cBif'));
+  const amax=1.5, pts=[], ptsY=[];
+  for(let i=0;i<=75;i++){
+    const a=amax*i/75, p={...P,a};
+    const s=simulate(p,500,0.1), f=s[s.length-1];
+    pts.push([a,f[1]]); ptsY.push([a,f[2]]);
+  }
+  const [X,Y]=axes(ctx,W,H,amax,1.1,'Coeficiente de cooperación a','Densidad final');
+  line(ctx,[[0,P.m],[amax,P.m]],X,Y,css('--accent'),1.3,[6,5]);
+  line(ctx,pts,X,Y,css('--bison'),2.6);
+  line(ctx,ptsY,X,Y,css('--wolf'),2.6);
+  ctx.strokeStyle='#1f2328'; ctx.lineWidth=1.2; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(X(P.a),Y(0)); ctx.lineTo(X(P.a),Y(1.1)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#1f2328'; ctx.font='12px system-ui'; ctx.textAlign='left'; ctx.fillText('a actual = '+P.a.toFixed(2),X(P.a)+5,Y(1.04));
+  ctx.fillStyle=css('--bison'); ctx.fillText('Bisontes',X(0.02),Y(pts[0][1])-8);
+  ctx.fillStyle=css('--wolf'); ctx.fillText('Lobos',X(0.02),Y(ptsY[0][1])+16);
+}
+function drawHunt(){
+  const [ctx,W,H]=setup(document.getElementById('cHunt'));
+  const logit=p=>Math.log(p/(1-p)), inv=z=>1/(1+Math.exp(-z));
+  const curve=(p1,OR,knot)=>{const out=[];for(let n=1;n<=20;n+=0.1){const k=Math.min(n,knot);out.push([n,inv(logit(p1)+Math.log(OR)*(k-1))]);}return out;};
+  const [X,Y]=axes(ctx,W,H,20,0.6,'Número de lobos en la cacería','Probabilidad');
+  ctx.fillStyle='rgba(59,91,140,.12)'; ctx.fillRect(X(8.3),Y(0.6),X(12.9)-X(8.3),Y(0)-Y(0.6));
+  ctx.fillStyle=css('--wolf'); ctx.font='12px system-ui'; ctx.textAlign='center'; ctx.fillText("Manada Mollie's (≈10,6)",X(10.6),Y(0.57));
+  line(ctx,curve(0.15,1.67,4),X,Y,'#c48a3a',2.6);
+  line(ctx,curve(0.01,1.40,11),X,Y,css('--accent'),2.6);
+  [[4,curve(0.15,1.67,4)],[11,curve(0.01,1.40,11)]].forEach(([k,c],i)=>{
+    const v=c.find(d=>Math.abs(d[0]-k)<0.05)[1];
+    ctx.beginPath(); ctx.arc(X(k),Y(v),5,0,7); ctx.fillStyle=i?css('--accent'):'#c48a3a'; ctx.fill();
+    ctx.fillStyle='#1f2328'; ctx.textAlign='left'; ctx.fillText('saturación: '+k+' lobos',X(k)+8,Y(v)-8);
+  });
+}
+
+function update(){
+  spec.forEach(([k])=>document.getElementById('v_'+k).textContent=(+P[k]).toFixed(k==='T'?0:2));
+  const sol=simulate(P,P.T), E=equilibria(P);
+  drawTime(sol); drawPhase(sol,E);
+  const f=sol[sol.length-1], v=document.getElementById('verdict');
+  if(f[1]<1e-3){v.className='verdict bad'; v.textContent='Colapso: los bisontes caen por debajo del umbral m = '+P.m.toFixed(2)+' y se extinguen. Los lobos sobreviven solo con alimento alternativo (y → c = '+P.c.toFixed(2)+').';}
+  else if(Math.abs(f[1]-sol[Math.floor(sol.length*0.8)][1])>0.01){v.className='verdict mid'; v.textContent='Oscilación o transición lenta: aumenta el tiempo de simulación para ver el estado final.';}
+  else {v.className='verdict ok'; v.textContent='Coexistencia: bisontes ≈ '+f[1].toFixed(3)+', lobos ≈ '+f[2].toFixed(3)+'.';}
+  document.getElementById('eqTable').innerHTML='<tr><th>Equilibrio</th><th>x*</th><th>y*</th><th>Traza</th><th>Determinante</th><th>Tipo</th></tr>'+
+    E.map(e=>'<tr><td>'+e.name+'</td><td>'+e.x.toFixed(3)+'</td><td>'+e.y.toFixed(3)+'</td><td>'+e.stable.tr.toFixed(3)+'</td><td>'+e.stable.det.toFixed(3)+'</td><td>'+(e.stable.stable?'Estable':(e.stable.det<0?'Silla (inestable)':'Inestable'))+'</td></tr>').join('');
+  clearTimeout(window._bt); window._bt=setTimeout(drawBif,120);
+}
+syncSliders(); document.querySelector('[data-sc="1"]').classList.add('on'); update(); drawHunt();
+</script>
+</body>
+</html>
